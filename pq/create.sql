@@ -10,6 +10,14 @@ CREATE TABLE %(name)s (
   data        json         NOT NULL
 );
 
+CREATE TABLE %(name)s_output (
+  id          bigserial    PRIMARY KEY,
+  done_at timestamptz  NOT NULL DEFAULT current_timestamp,
+  job_id      bigint,
+  is_success  boolean,
+  output      text
+);
+
 end $$ language plpgsql;
 
 create index priority_idx_%(name)s on %(name)s

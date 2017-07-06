@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from logging import getLogger
 from functools import wraps
+from .utils import Literal
+
 from . import (
     PQ as BasePQ,
     Queue as BaseQueue,
@@ -51,6 +53,7 @@ def task(
 class Queue(BaseQueue):
     handler_registry = dict()
     logger = getLogger('pq.tasks')
+    store_output = True
 
     def fail(self, job, data, e=None):
         retried = data['retried']
@@ -81,11 +84,9 @@ class Queue(BaseQueue):
             ))
 
         try:
-            f(*data['args'], **data['kwargs'])
-            return True
-
+            return True, f(*data['args'], **data['kwargs'])
         except Exception as e:
-            return self.fail(job, data, e)
+            return self.fail(job, data, e), str(e)
 
     task = task
 
@@ -99,8 +100,14 @@ class Queue(BaseQueue):
                     return
 
                 continue
+            (is_success, result) = self.perform(job)
 
-            self.perform(job)
+            if self.store_output:
+                with self._transaction() as cursor:
+                    cursor.execute(
+                        "INSERT INTO %s (job_id, is_success, output) VALUES (%s, %s, %s)",
+                        (Literal(str(self.table) + '_output'), job.id, is_success, result)
+                    )
 
 
 class PQ(BasePQ):
